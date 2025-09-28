@@ -1,48 +1,47 @@
 package com.example.recipe_ai.service;
 
-import com.example.recipe_ai.dto.RecipeRequest;   // 使用者輸入的資料格式（食材、料理需求）
-import com.example.recipe_ai.dto.RecipeResponse;  // AI 回傳的食譜格式（標題、食材、步驟、圖片）
-import org.springframework.ai.chat.model.ChatModel;   // Spring AI 提供的聊天模型介面
-import org.springframework.ai.chat.messages.UserMessage; // 使用者訊息物件，用來包裝我們的提問
-import org.springframework.ai.chat.prompt.Prompt;       // Prompt 是 AI 的輸入格式
+import com.example.recipe_ai.dto.RecipeRequest;
+import com.example.recipe_ai.dto.RecipeResponse;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * RecipeService
- * 核心邏輯：呼叫 Spring AI 的 ChatModel 產生食譜
+ * 核心邏輯：呼叫 Spring AI 的 ChatModel 產生食譜文字，並呼叫 GeminiImageService 產生圖片 Data URL。
  */
-@Service  // 告訴 Spring 這是一個服務類別，會被自動管理（變成 Bean）
+@Service // 告訴 Spring 這是一個服務類別，會被自動管理（變成 Bean）
 public class RecipeService {
 
-    // 宣告一個 ChatModel 物件，用來跟 AI 模型互動
+    // 宣告一個 ChatModel 物件，用來跟 AI 模型互動（用於生成食譜文字/JSON）
     private final ChatModel chatModel;
 
-    // 建構子注入：Spring 會自動幫我們把 chatModel 傳進來
+    // 注入圖片生成服務
+    private final GeminiImageService geminiImageService;
+
+    // 建構子注入：Spring 會自動幫我們把所有依賴傳進來
     @Autowired
-    public RecipeService(ChatModel chatModel) {
+    public RecipeService(ChatModel chatModel, GeminiImageService geminiImageService) {
         this.chatModel = chatModel;
+        this.geminiImageService = geminiImageService;
     }
 
     /**
      * 建立 Prompt，告訴 AI 要怎麼輸出 JSON 食譜格式
-     * @param request 使用者輸入的食材與料理風格
-     * @return Prompt 物件，給 AI 模型使用
      */
     private Prompt buildPrompt(RecipeRequest request) {
         String promptText = String.format(
-                "請根據以下輸入，生成詳細且專業的食譜，請只回傳純 JSON 格式，不要加任何說明文字或 Markdown 格式（例如 ```json）。\n\n" +
-                        "請根據以下輸入，回傳純 JSON 格式的食譜，不要加任何說明文字或 Markdown 格式（例如 ```json）。\n\n" +
-                        "請務必讓食譜內容非常詳細，包括：\n" +
+                "請根據以下輸入，回傳純 JSON 格式的食譜，不要加任何說明文字或 Markdown 格式（例如 ```json）。請務必讓食譜內容非常詳細，包括：\n" +
                         "1. 食材請列出完整名稱與數量（例如：雞胸肉 200g、洋蔥 半顆）\n" +
                         "2. 步驟請具體描述每個動作、時間、火候、器具（例如：用中火加熱平底鍋 2 分鐘，加入橄欖油 1 湯匙）\n" +
                         "3. 請確保步驟邏輯清晰，能讓初學者照著完成料理\n" +
-                        "4. 請補上合理的 imageUrl（可用虛擬連結）\n\n" +
+                        "4. imageUrl 欄位請留空，因為圖片將透過另一個服務生成。\n\n" +
                         "食材: %s\n" +
                         "料理需求: %s\n\n" +
                         "輸出格式範例：\n" +
@@ -50,46 +49,53 @@ public class RecipeService {
                         "  \"title\": \"料理名稱\",\n" +
                         "  \"ingredients\": [\"雞胸肉 200g\", \"洋蔥 半顆\"],\n" +
                         "  \"steps\": [\"步驟1：用中火加熱平底鍋 2 分鐘，加入橄欖油 1 湯匙。\", \"步驟2：放入雞胸肉煎至兩面金黃，每面約 3 分鐘。\"],\n" +
-                        "  \"imageUrl\": \"https://example.com/image.jpg\"\n" +
+                        "  \"imageUrl\": \"\"\n" +
                         "}",
-                request.getIngredients(),       // 使用者輸入的食材
-                request.getStyleOrDiet()        // 使用者輸入的料理風格或飲食限制
+                request.getIngredients(),
+                request.getStyleOrDiet()
         );
 
-        return new Prompt(new UserMessage(promptText));     // 把文字包裝成 UserMessage，再轉成 Prompt 給 AI 模型使用，因為- Spring AI 的 ChatClient.call(...) 只接受 Prompt 作為輸入
+        return new Prompt(new UserMessage(promptText));
     }
 
     /**
-     * 核根據輸入，呼叫 AI 模型生成食譜
-     * @param request 使用者輸入的食材與料理需求
-     * @return RecipeResponse 包含食譜標題、食材清單、步驟、圖片網址
+     * 核心邏輯：根據輸入，呼叫 AI 模型生成食譜，接著呼叫 Gemini 生成圖片。
      */
     public RecipeResponse generateRecipe(RecipeRequest request) {
-        // 建立提示語（Prompt）
+        // 1. 生成食譜文字（JSON）
         Prompt prompt = buildPrompt(request);
+        String aiResponse = chatModel.call(prompt).getResult().getOutput().getText();
+        System.out.println("AI 食譜 JSON 回覆內容：" + aiResponse);
 
-        // 呼叫 AI 模型，取得回覆文字（新版 Spring AI 用 getText()）
-        String aiResponse = chatModel
-                .call(prompt)   //把 prompt 丟給 AI 模型
-                .getResult()    // 拿到 AI 的回覆結果物件
-                .getOutput()    //拿到 AI 的輸出內容
-                .getText();     //拿到 AI 回覆的純文字（根據 promptText是JSON 格式的食譜）
-
-        // 🧪 加這行 log，方便你看到 AI 回了什麼
-        System.out.println("AI 回覆內容：" + aiResponse);
-
-        // 使用 Jackson 將 JSON 字串轉成 RecipeResponse 物件
+        // 2. 將 JSON 字串轉成 RecipeResponse 物件
         ObjectMapper mapper = new ObjectMapper();
+        RecipeResponse recipeResponse;
         try {
-            return mapper.readValue(aiResponse, RecipeResponse.class);
+            // 清理可能出現的 Markdown 符號（例如 LLM 誤回傳的 ```json ... ```）
+            String cleanAiResponse = aiResponse.replace("```json", "").replace("```", "").trim();
+            recipeResponse = mapper.readValue(cleanAiResponse, RecipeResponse.class);
         } catch (JsonProcessingException e) {
-            System.err.println("解析失敗：" + e.getMessage());
+            System.err.println("解析食譜 JSON 失敗：" + e.getMessage());
+            // 如果解析失敗，回傳預設值
             return RecipeResponse.builder()
-                    .title("預設食譜")
+                    .title("預設食譜（解析失敗）")
                     .ingredients(Arrays.asList("雞肉", "洋蔥"))
                     .steps(Arrays.asList("切雞肉", "炒洋蔥"))
-                    .imageUrl("https://via.placeholder.com/300")
+                    .imageUrl("[https://via.placeholder.com/300?text=JSON+Error](https://via.placeholder.com/300?text=JSON+Error)")
                     .build();
         }
+
+        // 3. 使用食譜標題作為圖片提示語，呼叫 Gemini 生成圖片
+        try {
+            String imageUrl = geminiImageService.generateImage(recipeResponse.getSteps());
+            // 4. 更新 Response 物件中的 imageUrl
+            recipeResponse.setImageUrl(imageUrl);
+        } catch (Exception e) {
+            System.err.println("Gemini 圖片生成失敗：" + e.getMessage());
+            // 如果圖片生成失敗，回傳一個錯誤圖片連結
+            recipeResponse.setImageUrl("[https://via.placeholder.com/300?text=Image+Generation+Error](https://via.placeholder.com/300?text=Image+Generation+Error)");
+        }
+
+        return recipeResponse;
     }
 }
