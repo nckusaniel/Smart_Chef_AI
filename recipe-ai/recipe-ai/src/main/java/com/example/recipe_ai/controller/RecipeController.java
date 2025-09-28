@@ -2,11 +2,15 @@ package com.example.recipe_ai.controller;
 import com.example.recipe_ai.dto.RecipeRequest;
 import com.example.recipe_ai.dto.RecipeResponse;
 import com.example.recipe_ai.service.RecipeService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 
-@CrossOrigin(origins = "*")
+/**
+ * RecipeController
+ * 提供 API 給前端呼叫
+ */
 @RestController     //告訴SPRING BOOT 這個類別是一個(restfulapi)的控制器，主要處理前端輸入的請求。
+@CrossOrigin(origins = "*")     //react網址通用
 @RequestMapping("/api/recipe")  //告訴spring boot，此類別中所有api要使用，都要連線到http...api/recipe
 
 /*
@@ -33,12 +37,6 @@ public class RecipeController {
      */
     @PostMapping("/generate")
     public RecipeResponse generateRecipe(@RequestBody RecipeRequest request) {
-        //模擬假資料
-        return RecipeResponse.builder()
-                .title("番茄炒蛋")
-                .ingredients(List.of("番茄","雞蛋","鹽","糖","油"))
-                .steps(List.of("打蛋並加鹽攪拌", "熱鍋加油炒蛋", "加入番茄拌炒", "完成上桌"))
-                .imageUrl("https://via.placeholder.com/150")
-                .build();
+        return recipeService.generateRecipe(request);
     }
 }
