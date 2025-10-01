@@ -20,39 +20,36 @@
 
 本專案採用 **服務編排 (Service Orchestration)** 架構，由 Spring Boot 後端統一協調多個 AI 服務，將複雜的生成過程包裝為單一 API 呼叫。
 
+
+
 ```mermaid
 flowchart LR
-    subgraph Client["🌐 Client"]
-        A[React App]
-    end
-
-    subgraph Backend["⚙️ Spring Boot Backend"]
-        B[RecipeController]
-        C[RecipeService]
-    end
-
-    subgraph AI["🤖 AI Services"]
-        D[OpenAI GPT]
-        E[GeminiImageService]
-        F[Google AI Studio]
-    end
-
-    A -->|"POST /api/recipe/generate"| B
+ subgraph Client["🌐 Client"]
+        A["React App"]
+  end
+ subgraph Backend["⚙️ Spring Boot Backend"]
+        B["RecipeController"]
+        C["RecipeService"]
+  end
+ subgraph AI["🤖 AI Services"]
+        D["OpenAI GPT"]
+        E["GeminiImageService"]
+        F["Google AI Studio"]
+  end
+    A -- POST 食材、飲食需求/料理風格 --> B
     B --> C
+    C -- 1️⃣ LLM Prompting --> D
+    D -- 返回 JSON 食譜 --> C
+    C -- 2️⃣ Image Prompting --> E
+    E -- "呼叫 Gemini 2.5 Flash API" --> F
+    F -- 返回 Base64 圖片 --> E
+    E -- 返回 Data URL --> C
+    C -- 3️⃣ 組合 RecipeResponse --> B
+    B -- JSON Response (含料理名稱、食材清單、料理步驟、圖片) --> A
 
-    %% LLM Prompting
-    C -->|"1️⃣ LLM Prompting"| D
-    D -->|"返回 JSON 食譜"| C
-
-    %% Image Prompting
-    C -->|"2️⃣ Image Prompting"| E
-    E -->|"呼叫 Gemini 2.5 Flash API"| F
-    F -->|"返回 Base64 圖片"| E
-    E -->|"返回 Data URL"| C
-
-    %% Response
-    C -->|"3️⃣ 組合 RecipeResponse"| B
-    B -->|"JSON Response (含食譜 + 圖片)"| A
+    style AI stroke:#00C853,fill:#FFF9C4
+    style Backend fill:#C8E6C9
+    style Client fill:#BBDEFB
 
 ```
 
