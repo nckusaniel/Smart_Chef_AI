@@ -19,7 +19,7 @@
 ## 🏛️ 系統架構 (System Architecture)
 
 本專案採用 **服務編排 (Service Orchestration)** 架構，由 Spring Boot 後端統一協調多個 AI 服務，將複雜的生成過程包裝為單一 API 呼叫。
-
+![image](https://github.com/nckusaniel/java_project/blob/master/flowchart.png)
 
 
 ```mermaid
