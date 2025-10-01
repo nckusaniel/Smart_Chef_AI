@@ -1,150 +1,141 @@
 
-# 食譜 AI 推薦系統 (Recipe AI)
+-----
 
-## 專案簡介
-本專案是一個基於 **Spring Boot + React + Spring AI** 的食譜推薦系統。  
-核心目標是解決日常「冰箱有食材卻不知道怎麼料理」的問題。使用者輸入食材與飲食需求後，系統會呼叫 AI 模型，生成一份完整的食譜，包括：
+# 🍳 Smart Chef AI 食譜推薦系統
 
-- 料理名稱
-- 食材清單（含數量與單位）
-- 料理步驟（詳細火候、時間、器具）
-- 成品圖片連結（目前使用虛擬連結）
+## 🌟 專案簡介
 
-此專案目前為 **MVP**，專注於前後端串接與 AI 輸出解析，不含資料庫，以便快速展示核心功能。
+**Smart Chef AI 食譜推薦系統** 是一個全端應用程式，旨在解決傳統食譜網站無法根據用戶的**現有食材、特定飲食要求 (如低碳、高蛋白)** 或**料理風格**進行客製化推薦的痛點。
 
----
+本系統使用 **Java Spring Boot** 作為後端服務核心，透過 **AI 模型** 即時生成詳細、結構化的食譜 JSON 內容，並同步生成逼真的**料理預覽圖**，提供獨一無二的個人化烹飪體驗。
 
-## 技術架構與使用技術
+## ✨ 核心功能
 
-### 後端 (Backend)
-- **語言與框架**
-  - Java 17
-  - Spring Boot
-- **AI 整合**
-  - Spring AI (`ChatModel`, `Prompt`, `UserMessage`)
-  - 使用 Jackson (`ObjectMapper`) 解析 AI 回傳的 JSON
-- **模組設計**
-  - `RecipeController`：負責 API 路由與請求處理 (`/api/recipe/generate`)
-  - `RecipeService`：核心邏輯，呼叫 AI 模型並解析 JSON
-  - `RecipeRequest`：使用者請求 DTO
-  - `RecipeResponse`：AI 回傳結果 DTO
-- **錯誤處理**
-  - AI 回傳 JSON 若解析失敗，會提供一組預設食譜（fallback）
+  * **智能客製化食譜生成：** 接收用戶的**食材清單**、**料理風格**或**飲食需求** (例如：泰式、減脂、素食)，並生成詳細食譜。
+  * **JSON 格式化輸出：** 利用 LLM 的 **JSON 模式 (JSON Mode)** 提示詞工程，確保食譜結構化輸出，便於前後端數據交換。
+  * **AI 料理預覽圖：** 即時呼叫 **Google Gemini 2.5 Flash** API，根據食譜內容生成 Base64 編碼的成品圖片，增強用戶體驗。
+  * **全端 RESTful API 架構：** 使用 Spring Boot 建立乾淨的 API 層，實現前後端分離，專注於服務編排。
 
-### 前端 (Frontend)
-- **語言與框架**
-  - React
-- **主要功能**
-  - 表單輸入：食材、料理風格/飲食需求
-  - 呼叫後端 API 產生食譜
-  - 結果顯示區：料理名稱、食材清單、步驟、圖片（placeholder）
+## 🏛️ 系統架構 (System Architecture)
 
-### 開發工具
-- Postman：API 測試
-- Maven：專案建置與依賴管理
-- Node.js + npm：前端建置與套件管理
+本專案採用 **服務編排 (Service Orchestration)** 架構，由 Spring Boot 後端統一協調多個 AI 服務，將複雜的生成過程包裝為單一 API 呼叫。
 
----
+```mermaid
+flowchart LR
+    subgraph Client["🌐 Client"]
+        A[React App]
+    end
 
-## 目前已完成的功能
-1. **後端**
-   - Spring Boot 專案骨架完成
-   - API 路由統一為 `/api/recipe`
-   - RecipeService 整合 Spring AI，生成 JSON 食譜並轉換為 `RecipeResponse`
-   - JSON 解析錯誤時提供 fallback 機制
-2. **前端**
-   - 表單輸入與 API 串接
-   - 結果區顯示：名稱 / 食材 / 步驟 / 圖片 placeholder
-3. **整合**
-   - 前後端串接成功
-   - 使用者可輸入需求並即時獲取食譜
+    subgraph Backend["⚙️ Spring Boot Backend"]
+        B[RecipeController]
+        C[RecipeService]
+    end
 
----
+    subgraph AI["🤖 AI Services"]
+        D[OpenAI GPT]
+        E[GeminiImageService]
+        F[Google AI Studio]
+    end
 
-## 如何啟動與測試
+    A -->|"POST /api/recipe/generate"| B
+    B --> C
 
-### 後端
-1. 克隆專案：
-   ```bash
-   git clone <YOUR_REPO_URL>
-    ````
+    %% LLM Prompting
+    C -->|"1️⃣ LLM Prompting"| D
+    D -->|"返回 JSON 食譜"| C
 
-2. 進入專案資料夾：
+    %% Image Prompting
+    C -->|"2️⃣ Image Prompting"| E
+    E -->|"呼叫 Gemini 2.5 Flash API"| F
+    F -->|"返回 Base64 圖片"| E
+    E -->|"返回 Data URL"| C
 
-   ```bash
-   cd recipe-ai
-   ```
-3. 使用 Maven 建置：
+    %% Response
+    C -->|"3️⃣ 組合 RecipeResponse"| B
+    B -->|"JSON Response (含食譜 + 圖片)"| A
 
-   ```bash
-   mvn clean install
-   ```
-4. 啟動 Spring Boot：
+```
 
-   ```bash
-   mvn spring-boot:run
-   ```
-5. 測試 API（以 Postman 或 curl 測試）：
 
-   * URL: `http://localhost:8080/api/recipe/generate`
-   * 方法：`POST`
-   * Body 範例：
+### 關鍵元件說明：
 
-     ```json
-     {
-       "ingredients": "雞胸肉, 洋蔥, 蘑菇",
-       "styleOrDiet": "中式"
-     }
-     ```
+  * **RecipeController：** 負責接收前端的 `RecipeRequest` (食材, 風格)，處理 CORS 和路由 (`/api/recipe/generate`)。
+  * **RecipeService：** **核心業務邏輯。** 負責編排流程，先利用 **Spring AI** (與 OpenAI 整合) 生成結構化食譜文字，再呼叫 `GeminiImageService` 獲取圖片。
+  * **GeminiImageService：** 負責圖片生成，使用 **RestTemplate** 實作客製化 API 呼叫，整合 Google Gemini 2.5 Flash (Image Preview) 模型。
+  * **DTOs：** 透過 `RecipeRequest` 和 `RecipeResponse` 確保資料傳輸格式清晰、可維護。
 
-### 前端
+## 🛠️ 技術棧 (Tech Stack)
 
-1. 進入前端目錄：
+| 類別 | 技術/工具 | 備註 |
+| :--- | :--- | :--- |
+| **後端核心** | **Java 17+, Spring Boot 3.x** | 提供強健的後端服務和依賴注入 (DI)。 |
+| **AI 服務層** | **Spring AI (OpenAI)** | 用於生成 JSON 格式的食譜內容。 |
+| **AI 服務層** | **Google Gemini API** | 透過 RestTemplate 客製化呼叫 Gemini 2.5 Flash 進行圖片生成。 |
+| **數據傳輸** | **Lombok, Jackson** | 簡化 POJO 撰寫，處理 JSON 序列化與反序列化。 |
+| **後端通訊** | **RestTemplate** | 用於 `GeminiImageService` 中的外部 API 呼叫。 |
+| **前端 (DEMO)** | **React.js** | 簡單的 UI/UX 展示層。 |
+| **建構工具** | **Maven (pom.xml)** | 專案依賴管理。 |
 
-   ```bash
-   cd frontend
-   ```
-2. 安裝依賴：
+## 🚀 專案運行
 
-   ```bash
-   npm install
-   ```
-3. 啟動開發伺服器：
+### 1\. 環境設定
 
-   ```bash
-   npm start
-   ```
-4. 瀏覽器開啟 `http://localhost:3000`，即可操作。
+1.  **Clone 專案**：
+    ```bash
+    git clone [您的 GitHub URL]
+    cd recipe-ai
+    ```
+2.  **設定 API Keys**：
+    在 Spring Boot 資源檔 (例如 `application.properties` 或 `application.yml`) 中設定以下兩個 API Keys：
+    ```properties
+    # 來自 OpenAI，供 Spring AI ChatModel 使用
+    spring.ai.openai.api-key=[您的 OpenAI API Key]
+    # 來自 Google AI Studio，供 GeminiImageService 使用
+    # 註：此專案使用 RestTemplate 直接呼叫，但仍需配置 API Key
+    spring.ai.google.gemini.api-key=[您的 Gemini API Key]
+    ```
 
----
+### 2\. 啟動後端 (Spring Boot)
 
-## 未來規劃與待辦事項
+1.  確保您的 Java 環境為 **JDK 17 或以上**。
+2.  使用 Maven 運行 Spring Boot 應用程式：
+    ```bash
+    ./mvnw spring-boot:run
+    ```
+    後端服務將在 `http://localhost:8080` 啟動。
 
-* **資料庫整合**
+### 3\. 啟動前端 (React)
 
-  * 儲存歷史查詢結果與使用者偏好
-* **圖片生成**
+由於前端是一個簡單的 React App 結構，您需要手動處理其依賴和啟動：
 
-  * 整合 AI 圖片 API，自動生成料理成品圖片
-* **使用者功能**
+1.  進入前端目錄 (假設您的 React 程式碼在 `/frontend` 或其他目錄)。
+2.  安裝依賴 (假設使用 npm)：`npm install`
+3.  啟動前端服務：`npm start`
 
-  * 註冊 / 登入 / 收藏食譜
-  * 個人化推薦
-* **前端優化**
+### 4\. 測試 API
 
-  * UI 美化、步驟展示動畫化
-  * 食材搜尋建議
-* **進階推薦邏輯**
+您可以使用 Postman 或前端介面測試 `POST` 請求到：
 
-  * 自動建議替代食材
-  * 飲食限制（低碳、素食等）自動篩選
+```
+POST http://localhost:8080/api/recipe/generate
+Content-Type: application/json
+```
 
----
-![image](https://hackmd.io/_uploads/HylQV3L2xe.png)
+**Body (JSON):**
 
-## 作者
+```json
+{
+  "ingredients": "雞胸肉, 青花菜, 醬油, 蒜頭",
+  "styleOrDiet": "高蛋白，少油少鹽"
+}
+```
 
-郭雨翰
+## ⏭️ 未來展望 (Future Enhancements)
 
-此專案設計重點在於 **前後端分離 + AI JSON 輸出解析 + 清晰的模組化架構**，方便日後擴展至完整的 SaaS 或商業應用。
+為了將此專案推向生產環境，可以考慮以下增強：
 
+1.  **資料庫持久化：** 儘管 `pom.xml` 中引入了 `spring-boot-starter-data-jpa` 和 `postgresql`，但目前食譜並未存儲。未來可加入 PostgreSQL 數據庫，實現**用戶帳號、食譜收藏**和**歷史紀錄**功能。
+2.  **容器化部署：** 使用 **Docker** 容器化整個 Spring Boot 應用程式，簡化部署流程。
+3.  **錯誤處理優化：** 在 `RecipeService.java` 中將錯誤處理標準化，例如使用 `@ControllerAdvice` 進行全域異常處理。
+4.  **圖片生成優化：** 雖然使用了免費額度模型，但可升級到專門的付費 AI 繪圖服務（如 DALL-E 或 Midjourney API）以獲取更高品質的圖片。
+5.  **前端框架整合：** 將前端的 API 呼叫 (`api.js`) 與 React 的狀態管理 (如 Redux/Context API) 更好地結合，並優化頁面渲染速度。
