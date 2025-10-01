@@ -22,38 +22,6 @@
 ![image](https://github.com/nckusaniel/java_project/blob/master/flowchart.png)
 
 
-```mermaid
-flowchart LR
- subgraph Client["🌐 Client"]
-        A["React App"]
-  end
- subgraph Backend["⚙️ Spring Boot Backend"]
-        B["RecipeController"]
-        C["RecipeService"]
-  end
- subgraph AI["🤖 AI Services"]
-        D["OpenAI GPT"]
-        E["GeminiImageService"]
-        F["Google AI Studio"]
-  end
-    A -- POST 食材、飲食需求/料理風格 --> B
-    B --> C
-    C -- 1️⃣ LLM Prompting --> D
-    D -- 返回 JSON 食譜 --> C
-    C -- 2️⃣ Image Prompting --> E
-    E -- "呼叫 Gemini 2.5 Flash API" --> F
-    F -- 返回 Base64 圖片 --> E
-    E -- 返回 Data URL --> C
-    C -- 3️⃣ 組合 RecipeResponse --> B
-    B -- JSON Response (含料理名稱、食材清單、料理步驟、圖片) --> A
-
-    style AI stroke:#00C853,fill:#FFF9C4
-    style Backend fill:#C8E6C9
-    style Client fill:#BBDEFB
-
-```
-
-
 ### 關鍵元件說明：
 
   * **RecipeController：** 負責接收前端的 `RecipeRequest` (食材, 風格)，處理 CORS 和路由 (`/api/recipe/generate`)。
