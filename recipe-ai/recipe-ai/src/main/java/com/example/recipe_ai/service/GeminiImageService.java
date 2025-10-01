@@ -38,7 +38,7 @@ public class GeminiImageService {
 
     /**
      * 呼叫 Gemini 2.5 Flash (Image Preview) 生成圖片並回傳 Base64 Data URL
-     * @param title 圖片的提示語 (食譜名稱)
+     * @param steps 圖片的提示語 (料理步驟)
      * @return Base64 編碼的 Data URL (e.g., data:image/png;base64,...)
      * @throws Exception 如果 API 呼叫或解析失敗
      */
@@ -50,9 +50,9 @@ public class GeminiImageService {
         }
 
         // 1. 建立請求 Payload (JSON 格式)
-        // 提示語中要求模型生成圖片，以食譜標題作為主題
+        // 提示語中要求模型生成圖片，以料理步驟作為主題
         String imagePromptText = String.format(
-                "【圖片生成指令】請使用超高清解析度、專業打光、美食特寫構圖與景深效果，搭配白色陶瓷盤擺盤、木質餐桌背景、柔和自然光從左側照入，呈現油亮、焦香、濕潤的食材質感，根據以下食譜標題生成一張逼真的成品圖片，只輸出圖片，不要輸出任何文字說明。食譜主題：「%s」。",
+                "【圖片生成指令】請使用超高清解析度、專業打光、美食特寫構圖與景深效果，搭配白色陶瓷盤擺盤、木質餐桌背景、柔和自然光從左側照入，呈現油亮、焦香、濕潤的食材質感，根據以下食譜標題生成一張逼真的成品圖片，只輸出圖片，不要輸出任何文字說明。料理步驟：「%s」。",
                 steps
         );
 
@@ -91,23 +91,43 @@ public class GeminiImageService {
             throw new RuntimeException("無法連線至 Gemini 圖片生成服務", e);
         }
 
-        // 4. 解析 JSON 取得 Base64 圖片資料
+        // 4. 解析 JSON 取得 Base64 圖片資料 (修正後的強健解析邏輯)
         JsonNode rootNode = objectMapper.readTree(jsonResponse);
-        // 圖片 Base64 資料的路徑：candidates -> 0 -> content -> parts -> 0 -> inlineData -> data
-        JsonNode base64Node = rootNode
-                .path("candidates").path(0)
-                .path("content").path("parts").path(0)
-                .path("inlineData").path("data");
 
-        if (base64Node.isMissingNode() || !base64Node.isTextual()) {
+        // 取得 candidates -> 0 -> content -> parts 陣列
+        JsonNode partsNode = rootNode
+                .path("candidates").path(0)
+                .path("content").path("parts");
+
+        String base64Image = null;
+
+        if (partsNode.isArray()) {
+            // 迭代 parts 陣列，尋找包含 inlineData (圖片) 的節點
+            for (JsonNode part : partsNode) {
+                JsonNode inlineDataNode = part.path("inlineData");
+
+                // 檢查是否存在 inlineData 節點
+                if (!inlineDataNode.isMissingNode()) {
+                    JsonNode dataNode = inlineDataNode.path("data");
+
+                    // 檢查 data 節點是否存在且為文字 (即 Base64 字串)
+                    if (dataNode.isTextual()) {
+                        base64Image = dataNode.asText();
+                        // 找到圖片後立即跳出迴圈
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 如果沒有找到 Base64 圖片資料，拋出異常
+        if (base64Image == null) {
             System.err.println("解析 Base64 圖片資料失敗，JSON 結構不符或模型生成圖片失敗。");
             System.err.println("原始回覆：\n" + jsonResponse);
             throw new RuntimeException("無法從 Gemini 回覆中提取 Base64 圖片資料。");
         }
 
-        String base64Image = base64Node.asText();
-
-        // 5. 組合 Data URL (Data URL 格式：data:image/png;base64,<Base64_String>)
+        // 5. 組合 Data URL (前端可直接使用的圖片字串)
         return "data:image/png;base64," + base64Image;
     }
 }

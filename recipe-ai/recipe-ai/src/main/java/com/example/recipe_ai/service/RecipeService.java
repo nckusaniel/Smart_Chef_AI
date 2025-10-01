@@ -88,7 +88,7 @@ public class RecipeService {
         // 3. 使用食譜標題作為圖片提示語，呼叫 Gemini 生成圖片
         try {
             String imageUrl = geminiImageService.generateImage(recipeResponse.getSteps());
-            // 4. 更新 Response 物件中的 imageUrl
+             //4. 更新 Response 物件中的 imageUrl
             recipeResponse.setImageUrl(imageUrl);
         } catch (Exception e) {
             System.err.println("Gemini 圖片生成失敗：" + e.getMessage());
