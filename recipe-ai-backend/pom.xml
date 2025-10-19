@@ -11,7 +11,7 @@
     </parent>
 
     <groupId>com.example</groupId>
-    <artifactId>recipe-ai</artifactId>
+    <artifactId>recipe-ai-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>recipe-ai</name>
     <description>Demo project for Spring Boot</description>
