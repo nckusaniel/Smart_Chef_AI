@@ -28,7 +28,7 @@ public class GeminiImageService {
 
     // 從 application.properties 或 application.yml 讀取 API Key
     // 確保您的設定檔中配置了 gemini.api.key
-    @Value("${spring.ai.google.gemini.api-key:}")
+    @Value("${spring.ai.google.genai.api-key:}")
     private String geminiApiKey;
 
     // 實例化 RestTemplate 和 ObjectMapper
