@@ -3,17 +3,16 @@ package com.example.recipe_ai.service;
 import com.example.recipe_ai.dto.RecipeRequest;
 import com.example.recipe_ai.dto.RecipeResponse;
 //呼叫SPRING AI
+import com.example.recipe_ai.exception.ApiException;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 //使用@Service
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-
 //Jackson 相關類別
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
-
-import java.util.Arrays;
 
 /**
  * RecipeService
@@ -71,38 +70,29 @@ public class RecipeService {
      * 核心邏輯：根據輸入，呼叫 AI 模型生成食譜，接著呼叫 Gemini 生成圖片。
      */
     public RecipeResponse generateRecipe(RecipeRequest request) {
-        // 1. 生成食譜文字（JSON）
-        Prompt prompt = buildPrompt(request);
-        String aiResponse = mychatModel.call(prompt).getResult().getOutput().getText() ;
-        System.out.println("AI 食譜 JSON 回覆內容：" + aiResponse);
-
+        String aiResponse;
+        try {
+            // 1. 生成食譜文字（JSON）
+            Prompt prompt = buildPrompt(request);
+            aiResponse = mychatModel.call(prompt).getResult().getOutput().getText();
+        } catch (Exception e) {
+            // 處理網路或 API 錯誤
+            throw new ApiException("無法生成食譜文字，AI 服務可能暫時無法連線", HttpStatus.SERVICE_UNAVAILABLE);
+        }
         // 2. 將 JSON 字串轉成 RecipeResponse 物件
         RecipeResponse recipeResponse;
         try {
-            // 清理可能出現的 Markdown 符號（例如 LLM 誤回傳的 ```json ... ```）
             String cleanAiResponse = aiResponse.replace("```json", "").replace("```", "").trim();
             recipeResponse = mapper.readValue(cleanAiResponse, RecipeResponse.class);
         } catch (JsonProcessingException e) {
-            System.err.println("解析食譜 JSON 失敗：" + e.getMessage());
-            // 如果解析失敗，使用一個包含錯誤訊息的連結回傳預設值
-            return RecipeResponse.builder()
-                    .title("食譜生成失敗 (JSON Error)")
-                    .ingredients(Arrays.asList("請檢查 AI 回覆格式"))
-                    .steps(Arrays.asList("步驟無法顯示"))
-                    .imageUrl("https://via.placeholder.com/300?text=JSON+Parse+Error") // 改用實際的 URL，而不是 Markdown
-                    .build();
+            throw new ApiException("無法解析 AI 生成的食譜 JSON: " + aiResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        // 3. 使用食譜標題作為圖片提示語，呼叫 Gemini 生成圖片
-        try {
-            String imageUrl = mygeminiImageService.generateImage(recipeResponse.getSteps());
-            //4. 更新 Response 物件中的 imageUrl
-            recipeResponse.setImageUrl(imageUrl);
-        } catch (Exception e) {
-            System.err.println("Gemini 圖片生成失敗：" + e.getMessage());
-            // 如果圖片生成失敗，回傳一個錯誤圖片連結
-            recipeResponse.setImageUrl("https://via.placeholder.com/300?text=Image+Generation+Error");
-        }
+        // 3. 使用食譜步驟作為圖片提示語，呼叫 Gemini 生成圖片
+        String imageUrl = mygeminiImageService.generateImage(recipeResponse.getSteps());
+
+        // 4. 更新 Response 物件中的 imageUrl
+        recipeResponse.setImageUrl(imageUrl);
 
         return recipeResponse;
     }

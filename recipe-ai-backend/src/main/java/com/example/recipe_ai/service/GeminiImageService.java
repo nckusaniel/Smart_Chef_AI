@@ -1,7 +1,10 @@
 package com.example.recipe_ai.service;
 
+import com.example.recipe_ai.exception.ApiException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.RestTemplate;
@@ -40,9 +43,8 @@ public class GeminiImageService {
      * 呼叫 Gemini 2.5 Flash (Image Preview) 生成圖片並回傳 Base64 Data URL
      * @param steps 圖片的提示語 (料理步驟)
      * @return Base64 編碼的 Data URL (e.g., data:image/png;base64,...)
-     * @throws Exception 如果 API 呼叫或解析失敗
      */
-    public String generateImage(List<String> steps) throws Exception {
+    public String generateImage(List<String> steps) {
         // 1. 建立請求 Payload (JSON 格式)
         // 提示語中要求模型生成圖片，以料理步驟作為主題
         String imagePromptText = String.format(
@@ -81,12 +83,16 @@ public class GeminiImageService {
             );
         } catch (Exception e) {
             // 處理網路或 API 錯誤
-            System.err.println("Gemini API 呼叫失敗: " + e.getMessage());
-            throw new RuntimeException("無法連線至 Gemini 圖片生成服務", e);
+            throw new ApiException("無法連線至 Gemini 圖片生成服務", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         // 4. 解析 JSON 取得 Base64 圖片資料 (修正後的強健解析邏輯)
-        JsonNode rootNode = objectMapper.readTree(jsonResponse);
+        JsonNode rootNode;
+        try {
+            rootNode = objectMapper.readTree(jsonResponse);
+        } catch (JsonProcessingException e) {
+            throw new ApiException("無法解析 Gemini 的圖片回覆 JSON", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
 
         // 取得 candidates -> 0 -> content -> parts 陣列
         JsonNode partsNode = rootNode
@@ -116,9 +122,7 @@ public class GeminiImageService {
 
         // 如果沒有找到 Base64 圖片資料，拋出異常
         if (base64Image == null) {
-            System.err.println("解析 Base64 圖片資料失敗，JSON 結構不符或模型生成圖片失敗。");
-            System.err.println("原始回覆：\n" + jsonResponse);
-            throw new RuntimeException("無法從 Gemini 回覆中提取 Base64 圖片資料。");
+            throw new ApiException("無法從 Gemini 回覆中提取 Base64 圖片資料。", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         // 5. 組合 Data URL (前端可直接使用的圖片字串)
