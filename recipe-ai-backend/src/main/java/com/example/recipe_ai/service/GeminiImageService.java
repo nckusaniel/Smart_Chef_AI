@@ -24,11 +24,11 @@ public class GeminiImageService {
 
     // 使用 gemini-2.5-flash-image-preview 模型和 generateContent 端點
     private static final String GEMINI_IMAGE_API_URL =
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key={apiKey}";
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key={apiKey}";
 
     // 從 application.properties 或 application.yml 讀取 API Key
     // 確保您的設定檔中配置了 gemini.api.key
-    @Value("${spring.ai.google.gemini.api-key:}")
+    @Value("${spring.ai.google.genai.api-key:}")
     private String geminiApiKey;
 
     // 實例化 RestTemplate 和 ObjectMapper
@@ -43,12 +43,6 @@ public class GeminiImageService {
      * @throws Exception 如果 API 呼叫或解析失敗
      */
     public String generateImage(List<String> steps) throws Exception {
-        if (geminiApiKey == null || geminiApiKey.isEmpty()) {
-            // 如果沒有 API Key，回傳佔位符
-            System.err.println("警告：Gemini API Key 未配置，無法呼叫圖片生成服務。");
-            return "https://via.placeholder.com/300?text=NO+API+KEY";
-        }
-
         // 1. 建立請求 Payload (JSON 格式)
         // 提示語中要求模型生成圖片，以料理步驟作為主題
         String imagePromptText = String.format(

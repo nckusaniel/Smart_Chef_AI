@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
  */
 public class RecipeController {
 
-    // 宣告myrecipeService變數，為了讓下面建構子，可以注入實例
+    // 宣告my_recipeService變數，為了讓下面建構子，可以注入實例
     private final RecipeService myrecipeService;
 
     /**
@@ -43,7 +43,7 @@ public class RecipeController {
 
 // 你可以在這裡加入更多 API (例如：查詢食譜、刪除食譜...)
 
-//private final RecipeService myrecipeService，宣告變數myrecipeService，為了使用RecipeService類別的generateRecipe。
-//public RecipeController(RecipeService recipeService) {this.myrecipeService = recipeService;//變數實例化，讓我等等可用RecipeService的方法
+//private final RecipeService my_recipeService，宣告變數my_recipeService，為了使用RecipeService類別的generateRecipe。
+//public RecipeController(RecipeService recipeService) {this.my_recipeService = recipeService;//變數實例化，讓我等等可用RecipeService的方法
 //public RecipeResponse handle_generateRecipe(@RequestBody RecipeRequest request)
-//宣告方法來連接前後端，輸入RecipeRequest request 利用myrecipeService呼叫方法generateRecipe(request); 並回傳 RecipeResponse型態給前端
+//宣告方法來連接前後端，輸入RecipeRequest request 利用my_recipeService呼叫方法generateRecipe(request); 並回傳 RecipeResponse型態給前端
