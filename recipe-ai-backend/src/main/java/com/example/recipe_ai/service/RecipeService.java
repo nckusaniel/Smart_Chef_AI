@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 //Jackson 相關類別
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+//輸入LOGGER
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * RecipeService
@@ -21,6 +24,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 @Service // 告訴 Spring 這是一個服務類別，會被自動管理（變成 Bean）
 public class RecipeService {
 
+    //宣告LOGGER
+    private static  Logger logger=LoggerFactory.getLogger(RecipeService.class);
     // 宣告ChatModel型態變數mychatModel，用來跟 AI 模型互動（用於生成食譜文字/JSON）
     private final ChatModel mychatModel;
 
@@ -75,9 +80,13 @@ public class RecipeService {
             // 1. 生成食譜文字（JSON）
             Prompt prompt = buildPrompt(request);
             aiResponse = mychatModel.call(prompt).getResult().getOutput().getText();
+
         } catch (Exception e) {
-            // 處理網路或 API 錯誤
-            throw new ApiException("無法生成食譜文字，AI 服務可能暫時無法連線", HttpStatus.SERVICE_UNAVAILABLE);
+            // 1.把錯誤印在後台日誌，才能除錯
+            logger.error("呼叫 Gemini AI 模型失敗: " + e.getMessage(), e);
+            // 2. 回傳一個更通用的錯誤訊息給前端
+            // 500 Internal Server Error 是一個更適合的 "catch-all" 狀態
+            throw new ApiException("AI 服務處理失敗，可能是API_KEY錯誤", HttpStatus.INTERNAL_SERVER_ERROR);
         }
         // 2. 將 JSON 字串轉成 RecipeResponse 物件
         RecipeResponse recipeResponse;
@@ -85,7 +94,9 @@ public class RecipeService {
             String cleanAiResponse = aiResponse.replace("```json", "").replace("```", "").trim();
             recipeResponse = mapper.readValue(cleanAiResponse, RecipeResponse.class);
         } catch (JsonProcessingException e) {
-            throw new ApiException("無法解析 AI 生成的食譜 JSON: " + aiResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+            // JSON 解析失敗也Log
+            logger.error("無法解析 AI 回傳的 JSON: " + aiResponse, e);
+            throw new ApiException("無法解析 AI 生成的食譜 JSON: " , HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         // 3. 使用食譜步驟作為圖片提示語，呼叫 Gemini 生成圖片
