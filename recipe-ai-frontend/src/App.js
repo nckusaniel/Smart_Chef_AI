@@ -5,11 +5,13 @@ function App() {
   const [styleOrDiet, setStyleOrDiet] = useState("");
   const [recipes, setRecipes] = useState([]); // 多筆食譜
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null); // 新增 state 來存放錯誤訊息，改為 null 或物件
   const [darkMode, setDarkMode] = useState(false);
 
   const handleGenerate = async () => {
     setLoading(true);
     setRecipes([]);
+    setError(null); // 每次請求前都清除舊的錯誤訊息
 
     try {
       const response = await fetch("http://localhost:8080/api/recipe/generate", {
@@ -18,12 +20,27 @@ function App() {
         body: JSON.stringify({ ingredients, styleOrDiet }),
       });
 
+      // 檢查 HTTP 回應是否成功 (狀態碼 200-299)
+      if (!response.ok) {
+        // 如果不成功，解析後端傳來的錯誤訊息 JSON
+        const errorData = await response.json();
+        // 將後端返回的錯誤訊息和狀態碼存入 error state
+        setError({
+          message: errorData.message || "發生未知的錯誤",
+          statusCode: errorData.status || response.status, // 使用後端提供的狀態碼，否則使用 fetch 的狀態碼
+        });
+        setLoading(false); // 錯誤發生時也停止載入
+        return; // 錯誤已處理，提前返回
+      }
+
       const data = await response.json();
       // 假設後端回傳的是陣列
       setRecipes(Array.isArray(data) ? data : [data]);
-    } catch (error) {
-      console.error("Error generating recipe:", error);
-      alert("無法生成食譜，請稍後再試。");
+    } catch (err) { // 將變數名改為 err 以避免與 state 變數 error 混淆
+      console.error("Error generating recipe:", err);
+      // 處理網路錯誤或 JSON 解析錯誤 (如果 response.json() 失敗)
+      setError({ message: "網路連線錯誤或伺服器無回應，請稍後再試。", statusCode: null });
+      setLoading(false); // 錯誤發生時也停止載入
     } finally {
       setLoading(false);
     }
@@ -147,6 +164,14 @@ function App() {
         </button>
       </div>
 
+      {/* 錯誤訊息顯示區 */}
+      {error && (
+        <div style={{ maxWidth: "600px", margin: "0 auto 2rem auto", padding: "1rem", borderRadius: "12px", background: "#ffcccb", color: "#d8000c", textAlign: "center" }}>
+          <strong>錯誤：</strong> {error.message}
+          {error.statusCode && <span> (HTTP Status: {error.statusCode})</span>}
+        </div>
+      )}
+
       {/* 食譜卡片區 */}
       <div
         style={{
@@ -180,22 +205,22 @@ function App() {
             <h2 style={{ color: "#ff6f61", marginBottom: "1rem" }}>{recipe.title}</h2>
 
             <h3>📝 食材清單</h3>
-            <ul style={{ paddingLeft: "1.2rem", marginBottom: "1rem" }}>
-              {recipe.ingredients.map((item, idx) => (
+            {recipe.ingredients && <ul style={{ paddingLeft: "1.2rem", marginBottom: "1rem" }}>
+              {recipe.ingredients.map((item, idx) => ( // 增加保護，避免 undefined.map
                 <li key={idx} style={{ marginBottom: "0.3rem" }}>
                   {item}
                 </li>
               ))}
-            </ul>
+            </ul>}
 
             <h3>👩‍🍳 料理步驟</h3>
-            <ol style={{ paddingLeft: "1.2rem", marginBottom: "1rem" }}>
-              {recipe.steps.map((step, idx) => (
+            {recipe.steps && <ol style={{ paddingLeft: "1.2rem", marginBottom: "1rem" }}>
+              {recipe.steps.map((step, idx) => ( // 增加保護，避免 undefined.map
                 <li key={idx} style={{ marginBottom: "0.3rem" }}>
                   {step}
                 </li>
               ))}
-            </ol>
+            </ol>}
 
             {recipe.imageUrl && (
               <div style={{ textAlign: "center" }}>
