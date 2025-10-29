@@ -25,13 +25,13 @@ import org.slf4j.LoggerFactory;
 public class RecipeService {
 
     //宣告LOGGER
-    private static  Logger logger=LoggerFactory.getLogger(RecipeService.class);
-    // 宣告ChatModel型態變數mychatModel，用來跟 AI 模型互動（用於生成食譜文字/JSON）
+    private static final Logger logger=LoggerFactory.getLogger(RecipeService.class);
+    // mychatModel變數，用來跟 AI 模型互動（用於生成食譜文字/JSON）
     private final ChatModel mychatModel;
 
-    // 宣告GeminiImageService 型態變數mygeminiImageService，
+    // mygeminiImageService變數，用來生成圖片
     private final GeminiImageService mygeminiImageService;
-    // 宣告ObjectMapper型態變數mapper
+    // 變數mapper  JSON 序列化/反序列化工具
     private final ObjectMapper mapper = new ObjectMapper();
 
     // 建構子注入:Spring 自動把ChatModel、 GeminiImageService 物件（Bean）們當作參數傳進來，讓我賦予變數值。
@@ -79,6 +79,7 @@ public class RecipeService {
         try {
             // 1. 生成食譜文字（JSON）
             Prompt prompt = buildPrompt(request);
+            //chatmodel呼叫gemini-api .call取得回復
             aiResponse = mychatModel.call(prompt).getResult().getOutput().getText();
 
         } catch (Exception e) {
@@ -91,7 +92,9 @@ public class RecipeService {
         // 2. 將 JSON 字串轉成 RecipeResponse 物件
         RecipeResponse recipeResponse;
         try {
+            //先將 aiResponse清乾淨
             String cleanAiResponse = aiResponse.replace("```json", "").replace("```", "").trim();
+            //將json格式的aiResponse 轉成java物件格式為RecipeResopne( 利用readvalue)
             recipeResponse = mapper.readValue(cleanAiResponse, RecipeResponse.class);
         } catch (JsonProcessingException e) {
             // JSON 解析失敗也Log
@@ -107,4 +110,5 @@ public class RecipeService {
 
         return recipeResponse;
     }
+
 }
