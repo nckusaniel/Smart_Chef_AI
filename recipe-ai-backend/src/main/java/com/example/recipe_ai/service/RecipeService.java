@@ -3,18 +3,27 @@ package com.example.recipe_ai.service;
 import com.example.recipe_ai.dto.RecipeRequest;
 import com.example.recipe_ai.dto.RecipeResponse;
 //呼叫SPRING AI
+import com.example.recipe_ai.exception.ApiException;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 //使用@Service
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-
 //Jackson 相關類別
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+//輸入LOGGER
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+//資料庫相關
+import com.example.recipe_ai.entity.RecipeCache;
+import com.example.recipe_ai.repository.RecipeCacheRepository;
 
 import java.util.Arrays;
-
+import java.util.Collections;
+import java.util.Optional;
+import java.util.stream.Collectors;
 /**
  * RecipeService
  * 核心邏輯：呼叫 Spring AI 的 ChatModel 產生食譜文字，並呼叫 GeminiImageService 產生圖片 Data
@@ -22,18 +31,22 @@ import java.util.Arrays;
 @Service // 告訴 Spring 這是一個服務類別，會被自動管理（變成 Bean）
 public class RecipeService {
 
+    //宣告LOGGER
+    private static  Logger logger=LoggerFactory.getLogger(RecipeService.class);
     // 宣告ChatModel型態變數mychatModel，用來跟 AI 模型互動（用於生成食譜文字/JSON）
     private final ChatModel mychatModel;
-
     // 宣告GeminiImageService 型態變數mygeminiImageService，
     private final GeminiImageService mygeminiImageService;
     // 宣告ObjectMapper型態變數mapper
     private final ObjectMapper mapper = new ObjectMapper();
+    //宣告recipeCacheRepository，來跟資料庫互動
+    private final RecipeCacheRepository myrecipeCacheRepository;
 
     // 建構子注入:Spring 自動把ChatModel、 GeminiImageService 物件（Bean）們當作參數傳進來，讓我賦予變數值。
-    public RecipeService(ChatModel chatModel, GeminiImageService geminiImageService) {
+    public RecipeService(ChatModel chatModel, GeminiImageService geminiImageService,RecipeCacheRepository recipeCacheRepository) {
         this.mychatModel = chatModel;
         this.mygeminiImageService = geminiImageService;
+        this.myrecipeCacheRepository=recipeCacheRepository;
     }
 
     /**
@@ -68,42 +81,113 @@ public class RecipeService {
     }
 
     /**
-     * 核心邏輯：根據輸入，呼叫 AI 模型生成食譜，接著呼叫 Gemini 生成圖片。
+     * 核心邏輯：根據輸入，檢查是否存在於資料庫，有--直接回傳，沒有--呼叫 AI 模型生成食譜，接著呼叫 Gemini 生成圖片，存入資料庫
      */
     public RecipeResponse generateRecipe(RecipeRequest request) {
-        // 1. 生成食譜文字（JSON）
-        Prompt prompt = buildPrompt(request);
-        String aiResponse = mychatModel.call(prompt).getResult().getOutput().getText() ;
-        System.out.println("AI 食譜 JSON 回覆內容：" + aiResponse);
+        //----判斷需求是否存在資料庫
+        //1.將需求轉換成---資料庫主key格式
+        String key= generate_key(request);
+        System.out.println("log:正在查詢key:"+key);
 
-        // 2. 將 JSON 字串轉成 RecipeResponse 物件
+        //2.檢查key是否再資料庫。findById回傳那筆TABLE的資料。 有就回傳DATA，沒有回傳空optional
+        Optional<RecipeCache> search_result=myrecipeCacheRepository.findById(key);
+        //3.有值--找到了
+        if(search_result.isPresent()){
+            System.out.println("log:資料庫找到食譜資料");
+            //將資料庫資料放入cache暫存
+            RecipeCache cachedata=search_result.get();
+            //4.將cache塞進response
+            RecipeResponse recipeResponse = new RecipeResponse();
+            recipeResponse.setTitle(cachedata.getTitle());
+            recipeResponse.setImageUrl(cachedata.getImageUrl());
+            // 因為respose的ingredients、steps必須是list<string>。
+            // 因此用 Arrays.asList 和 split 來還原 List。
+            //且資料庫中存Ingredients是用 ||來分隔每個食材
+            if (cachedata.getIngredients() != null && !cachedata.getIngredients().isEmpty()) {
+                // 使用 split("\\|\\|")因為|要用 \\來跳脫，兩個||就是 \\ | || |
+                recipeResponse.setIngredients(Arrays.asList(cachedata.getIngredients().split("\\|\\|")));
+            } else {
+                recipeResponse.setIngredients(Collections.emptyList());
+            }
+            // 處理 steps
+            if (cachedata.getSteps() != null && !cachedata.getSteps().isEmpty()) {
+                recipeResponse.setSteps(Arrays.asList(cachedata.getSteps().split("\\|\\|")));
+            } else {
+                recipeResponse.setSteps(Collections.emptyList());
+            }
+            return  recipeResponse;
+        }
+        //5. 沒有找到資料庫(呼叫ai產生食譜)
+        System.out.println("LOG: 快取錯失 (Miss)! 準備呼叫 AI...");
+        String aiResponse;
+        try {
+            // 5.1 生成食譜文字（JSON）
+            Prompt prompt = buildPrompt(request);
+            aiResponse = mychatModel.call(prompt).getResult().getOutput().getText();
+
+        } catch (Exception e) {
+            // 1.把錯誤印在後台日誌，才能除錯
+            logger.error("呼叫 Gemini AI 模型失敗: " + e.getMessage(), e);
+            // 2. 回傳一個更通用的錯誤訊息給前端
+            // 500 Internal Server Error 是一個更適合的 "catch-all" 狀態
+            throw new ApiException("AI 服務處理失敗，可能是API_KEY錯誤", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        // 5.2 將 JSON 字串轉成 RecipeResponse 物件
         RecipeResponse recipeResponse;
         try {
-            // 清理可能出現的 Markdown 符號（例如 LLM 誤回傳的 ```json ... ```）
             String cleanAiResponse = aiResponse.replace("```json", "").replace("```", "").trim();
             recipeResponse = mapper.readValue(cleanAiResponse, RecipeResponse.class);
         } catch (JsonProcessingException e) {
-            System.err.println("解析食譜 JSON 失敗：" + e.getMessage());
-            // 如果解析失敗，使用一個包含錯誤訊息的連結回傳預設值
-            return RecipeResponse.builder()
-                    .title("食譜生成失敗 (JSON Error)")
-                    .ingredients(Arrays.asList("請檢查 AI 回覆格式"))
-                    .steps(Arrays.asList("步驟無法顯示"))
-                    .imageUrl("https://via.placeholder.com/300?text=JSON+Parse+Error") // 改用實際的 URL，而不是 Markdown
-                    .build();
+            // JSON 解析失敗也Log
+            logger.error("無法解析 AI 回傳的 JSON: " + aiResponse, e);
+            throw new ApiException("無法解析 AI 生成的食譜 JSON: " , HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        // 3. 使用食譜標題作為圖片提示語，呼叫 Gemini 生成圖片
-        try {
-            String imageUrl = mygeminiImageService.generateImage(recipeResponse.getSteps());
-            //4. 更新 Response 物件中的 imageUrl
-            recipeResponse.setImageUrl(imageUrl);
-        } catch (Exception e) {
-            System.err.println("Gemini 圖片生成失敗：" + e.getMessage());
-            // 如果圖片生成失敗，回傳一個錯誤圖片連結
-            recipeResponse.setImageUrl("https://via.placeholder.com/300?text=Image+Generation+Error");
-        }
+        // 5.3. 使用食譜步驟作為圖片提示語，呼叫 Gemini 生成圖片
+        String imageUrl = mygeminiImageService.generateImage(recipeResponse.getSteps());
+        System.out.println("imageUrl 長度：" + imageUrl.length());
+        // 5.4. 更新 Response 物件中的 imageUrl
+        recipeResponse.setImageUrl(imageUrl);
 
+        //5.5 儲存 進資料庫
+        System.out.println("LOG: 正在將 AI 結果存入資料庫...");
+        //將recipeResponse的資料放入 new_cache_entry
+        RecipeCache new_cache_entry=new RecipeCache();
+        new_cache_entry.setKey_id(key);
+        new_cache_entry.setTitle(recipeResponse.getTitle());
+        new_cache_entry.setImageUrl(recipeResponse.getImageUrl());
+        // 用 String.join 轉換list string 成 string，並用||拼接
+        new_cache_entry.setIngredients(String.join("||", recipeResponse.getIngredients()));
+        new_cache_entry.setSteps(String.join("||", recipeResponse.getSteps()));
+        // 存入資料庫
+        myrecipeCacheRepository.save(new_cache_entry);
         return recipeResponse;
     }
+
+    //-----產生key函數-----
+    private String generate_key(RecipeRequest request){
+        //輸入資料正規化
+        String normalize_ingredients= normalizeString(request.getIngredients());
+        String normalize_style=normalizeString(request.getStyleOrDiet());
+        //正規化資料組合成key
+        String key=normalize_ingredients+"::"+normalize_style;
+        return key;
+    }
+    //正規化---資料--1.轉小寫2.特殊符號分割3.去除頭尾空白4.過濾空字串5.排序6.用|重組
+    private String normalizeString(String input){
+        if(input == null || input.trim().isEmpty()){
+            return  ""; //輸入是空的，回傳空字串
+        }
+        //全部轉小寫
+      String string_lowercase=input.toLowerCase();
+        //spring中遇到特殊字元，就分割成多個字串陣列(代表不同食材
+        String [] string_arr = string_lowercase.split("[,，、]"); // 只用這三種逗號分割
+        //清理 map(代表對每個字串轉換
+        String clean_string=Arrays.stream(string_arr)
+                .map(String::trim)          //刪除每個陣列，頭尾空白
+                .sorted()                   //每個陣列按開頭排序
+                .collect(Collectors.joining("|"));  //把 Stream 集成最終結果，用|分隔，輸出預設string
+        return  clean_string;
+    }
+
 }
