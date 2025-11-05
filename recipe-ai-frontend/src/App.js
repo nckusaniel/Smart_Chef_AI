@@ -15,6 +15,7 @@ function App() {
 
     try {
       const response = await fetch("http://localhost:8080/api/recipe/generate", {
+      //const response = await fetch("http://3.25.181.88:8080/api/recipe/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ingredients, styleOrDiet }),

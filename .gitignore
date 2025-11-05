@@ -10,7 +10,7 @@
 
 # Log files
 *.log
-
+*.env
 # OS files
 .DS_Store
 Thumbs.db
