@@ -6,7 +6,7 @@ function App() {
   const [recipes, setRecipes] = useState([]); // 多筆食譜
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null); // 新增 state 來存放錯誤訊息，改為 null 或物件
-  const [darkMode, setDarkMode] = useState(false);
+  // const [darkMode, setDarkMode] = useState(false); // <-- 已移除
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -47,12 +47,13 @@ function App() {
     }
   };
 
+  // 樣式已固定為亮色模式
   const themeStyles = {
-    background: darkMode ? "#1e1e1e" : "linear-gradient(to right, #f8f4f0, #fff1e6)",
-    color: darkMode ? "#f5f5f5" : "#333",
-    cardBg: darkMode ? "#2a2a2a" : "#fff",
-    inputBg: darkMode ? "#3a3a3a" : "#fff",
-    inputColor: darkMode ? "#f5f5f5" : "#333",
+    background: "linear-gradient(to right, #f8f4f0, #fff1e6)",
+    color: "#333",
+    cardBg: "#fff",
+    inputBg: "#fff",
+    inputColor: "#333",
   };
 
   return (
@@ -63,29 +64,12 @@ function App() {
         fontFamily: "'Poppins', sans-serif",
         background: themeStyles.background,
         color: themeStyles.color,
-        transition: "all 0.3s ease",
+        // transition: "all 0.3s ease", // <-- 已移除
       }}
     >
       <div style={{ textAlign: "center", marginBottom: "2rem" }}>
         <h1 style={{ color: "#ff6f61" }}>🍳 AI 食譜推薦系統</h1>
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          style={{
-            marginTop: "0.5rem",
-            padding: "0.5rem 1rem",
-            borderRadius: "12px",
-            border: "none",
-            cursor: "pointer",
-            background: darkMode
-              ? "linear-gradient(90deg, #ff9472, #ff6f61)"
-              : "linear-gradient(90deg, #6a11cb, #2575fc)",
-            color: "white",
-            fontWeight: "600",
-            transition: "all 0.3s",
-          }}
-        >
-          {darkMode ? "切換亮色模式" : "切換深色模式"}
-        </button>
+        {/* 切換模式按鈕已移除 */}
       </div>
 
       {/* 表單區 */}
@@ -100,7 +84,7 @@ function App() {
           display: "flex",
           flexDirection: "column",
           gap: "1.5rem",
-          transition: "all 0.3s",
+          // transition: "all 0.3s", // <-- 已移除
         }}
       >
         <div style={{ display: "flex", flexDirection: "column" }}>
@@ -118,7 +102,7 @@ function App() {
               color: themeStyles.inputColor,
               outline: "none",
               fontSize: "1rem",
-              transition: "all 0.3s",
+              // transition: "all 0.3s", // <-- 已移除
             }}
           />
         </div>
@@ -138,7 +122,7 @@ function App() {
               color: themeStyles.inputColor,
               outline: "none",
               fontSize: "1rem",
-              transition: "all 0.3s",
+              // transition: "all 0.3s", // <-- 已移除
             }}
           />
         </div>
@@ -229,7 +213,10 @@ function App() {
                   src={recipe.imageUrl}
                   alt="食譜圖片"
                   style={{
-                    maxWidth: "100%",
+                    maxWidth: "600px",     // 限制圖片最大寬度
+                    width: "100%",         // 仍然保留響應式（小螢幕不會爆版）
+                    margin: "0 auto",      // 水平置中
+                    display: "block",      // 讓 margin: auto 生效
                     borderRadius: "16px",
                     boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
                     transition: "transform 0.3s",
