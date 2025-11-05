@@ -106,3 +106,25 @@ npm install
 npm start
 ```
 前端應用程式將在 `http://localhost:3000` 啟動。
+
+
+---
+
+## 🔗 API 範例
+
+```bash
+curl -X POST http://localhost:8080/recipes \
+-H "Content-Type: application/json" \
+-d '{"ingredients": ["雞肉","洋蔥"], "style": "泰式"}'
+```
+
+**成功回傳範例：**
+
+```json
+{
+  "title": "泰式洋蔥雞肉",
+  "ingredients": ["雞肉", "洋蔥", "檸檬", "魚露"],
+  "steps": ["切雞肉", "炒洋蔥", "加入醬料", "完成"],
+  "imageUrl": "data:image/png;base64,iVBORw0KGgoAAAANS..."
+}
+```
