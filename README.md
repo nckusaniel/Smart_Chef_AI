@@ -8,6 +8,11 @@ Smart Chef AI 是一個全端應用程式，旨在解決「我手邊有這些食
 <img width="2039" height="123" alt="image" src="https://github.com/user-attachments/assets/7ba89d6f-0cb2-4b9b-8097-120be652d3ce" />
 
 
+
+https://github.com/user-attachments/assets/195d54a7-ed62-4243-8cdf-628c5c5a4016
+
+
+
 ## ✨ 核心功能
 
 * **AI 服務編排**： 後端服務會協調多個 AI 模型，一個用於生成結構化食譜 (JSON)，另一個（Google Gemini 2.5 Flash）專門用於生成高品質的料理圖片。
