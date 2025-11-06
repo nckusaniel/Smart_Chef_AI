@@ -2,7 +2,7 @@
 
 Smart Chef AI 是一個全端應用程式，旨在解決「我手邊有這些食材，但我不知道能做什麼？」的日常難題。
 
-本系統使用 **Java Spring Boot** 作為後端，**React.js** 作為前端。使用者只需輸入**現有食材**和**料理風格**（例如：低碳、泰式），系統將即時生成包含詳細步驟、食材清單的客製化食譜，並**同步生成一道AI 料理圖片**。
+本系統使用 **Java Spring Boot** 作為後端，**React.js** 作為前端。使用者只需輸入**現有食材**和**料理風格**（例如：高蛋白、泰式、低油、氣炸），系統將即時生成包含詳細步驟、食材清單的客製化食譜，並**同步生成一道AI 料理圖片**。
 
 ![image](https://github.com/nckusaniel/java_project/blob/master/flowchart.png)
 <img width="2039" height="123" alt="image" src="https://github.com/user-attachments/assets/7ba89d6f-0cb2-4b9b-8097-120be652d3ce" />
