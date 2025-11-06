@@ -1,4 +1,4 @@
-# 🍳 Smart Chef AI - AI 食譜推薦系統
+# 🍳 Smart Chef AI：智慧食譜生成框架
 
 Smart Chef AI 是一個全端應用程式，旨在解決「我手邊有這些食材，但我不知道能做什麼？」的日常難題。
 
