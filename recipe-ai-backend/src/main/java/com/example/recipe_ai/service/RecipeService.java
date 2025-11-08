@@ -32,12 +32,12 @@ import java.util.stream.Collectors;
 public class RecipeService {
 
     //宣告LOGGER
-    private static  Logger logger=LoggerFactory.getLogger(RecipeService.class);
-    // 宣告ChatModel型態變數mychatModel，用來跟 AI 模型互動（用於生成食譜文字/JSON）
+    private static final Logger logger=LoggerFactory.getLogger(RecipeService.class);
+    // 宣告ChatModel型態的變數mychatModel，用來跟 AI 模型互動（用於生成食譜文字/JSON）
     private final ChatModel mychatModel;
-    // 宣告GeminiImageService 型態變數mygeminiImageService，
+    // 宣告GeminiImageService型態的變數mygeminiImageService，用來呼叫GeminiImageService中的方法
     private final GeminiImageService mygeminiImageService;
-    // 宣告ObjectMapper型態變數mapper
+    // 宣告ObjectMapper型態變數mapper，負責把json轉換成java，或java轉換成json
     private final ObjectMapper mapper = new ObjectMapper();
     //宣告recipeCacheRepository，來跟資料庫互動
     private final RecipeCacheRepository myrecipeCacheRepository;
@@ -61,10 +61,9 @@ public class RecipeService {
                 2. 步驟請具體描述每個動作、時間、火候、器具（例如：用中火加熱平底鍋 2 分鐘，加入橄欖油 1 湯匙）
                 3. 請確保步驟邏輯清晰，能讓初學者照著完成料理
                 4. imageUrl 欄位請留空，因為圖片將透過另一個服務生成。
-
                 **食材**：%s
                 **料理需求**：%s
-
+                
                 **請嚴格遵循以下 JSON 格式輸出**：
                 {
                   "title": "料理名稱",
@@ -76,7 +75,6 @@ public class RecipeService {
                 request.getIngredients(),
                 request.getStyleOrDiet()
         );
-
         return new Prompt(new UserMessage(promptText));
     }
 
@@ -85,80 +83,105 @@ public class RecipeService {
      */
     public RecipeResponse generateRecipe(RecipeRequest request) {
         //----判斷需求是否存在資料庫
-        //1.將需求轉換成---資料庫主key格式
+        //1.產生此需求的key
         String key= generate_key(request);
         System.out.println("log:正在查詢key:"+key);
 
-        //2.檢查key是否再資料庫。findById回傳那筆TABLE的資料。 有就回傳DATA，沒有回傳空optional
+        //2.檢查key是否在資料庫，找到回查那筆資料，找不對回傳null，用Optional<RecipeCache>接收
+        //有資料 → Optional 內部就存了一個 RecipeCache 物件
+        //沒資料 → Optional 是空的
         Optional<RecipeCache> search_result=myrecipeCacheRepository.findById(key);
-        //3.有值--找到了
+        //3. Optional非空，資料庫有這筆key
         if(search_result.isPresent()){
-            System.out.println("log:資料庫找到食譜資料");
-            //將資料庫資料放入cache暫存
-            RecipeCache cachedata=search_result.get();
-            //4.將cache塞進response
+            System.out.println("log:資料庫找到食譜資料");//資料庫資料，放入old_data，之後做存取
+            RecipeCache old_data=search_result.get();
+
+            //4.將old_data放入recipeResponse回傳
             RecipeResponse recipeResponse = new RecipeResponse();
-            recipeResponse.setTitle(cachedata.getTitle());
-            recipeResponse.setImageUrl(cachedata.getImageUrl());
-            // 因為respose的ingredients、steps必須是list<string>。
-            // 因此用 Arrays.asList 和 split 來還原 List。
-            //且資料庫中存Ingredients是用 ||來分隔每個食材
-            if (cachedata.getIngredients() != null && !cachedata.getIngredients().isEmpty()) {
+
+            //先處理資料庫跟dto都是string的部分
+            recipeResponse.setTitle(old_data.getTitle());
+            recipeResponse.setImageUrl(old_data.getImageUrl());
+
+            // DTO中 recipeResponse的 ingredients、steps必須是 list<string>，但資料庫中是string
+            // 用 Arrays.asList 和 split，來將string還原成 List<string>。資料庫中用 ||來分隔每個不同元素
+
+            // recipeResponse放入Ingredients
+            if (old_data.getIngredients() != null && !old_data.getIngredients().isEmpty()) {
                 // 使用 split("\\|\\|")因為|要用 \\來跳脫，兩個||就是 \\ | || |
-                recipeResponse.setIngredients(Arrays.asList(cachedata.getIngredients().split("\\|\\|")));
+                recipeResponse.setIngredients(Arrays.asList(old_data.getIngredients().split("\\|\\|")));
             } else {
                 recipeResponse.setIngredients(Collections.emptyList());
             }
-            // 處理 steps
-            if (cachedata.getSteps() != null && !cachedata.getSteps().isEmpty()) {
-                recipeResponse.setSteps(Arrays.asList(cachedata.getSteps().split("\\|\\|")));
+
+            // recipeResponse放入steps
+            if (old_data.getSteps() != null && !old_data.getSteps().isEmpty()) {
+                recipeResponse.setSteps(Arrays.asList(old_data.getSteps().split("\\|\\|")));
             } else {
                 recipeResponse.setSteps(Collections.emptyList());
             }
+            //回傳給前端
             return  recipeResponse;
         }
-        //5. 沒有找到資料庫(呼叫ai產生食譜)
+
         System.out.println("LOG: 快取錯失 (Miss)! 準備呼叫 AI...");
+
+        //5. -------資料庫沒有key-----呼叫ai產生食譜
         String aiResponse;
         try {
-            // 5.1 生成食譜文字（JSON）
+            // 5.1 產生prompt，並呼叫gemini的chatModel
             Prompt prompt = buildPrompt(request);
+
+            //將gemini的回應取出，存入airesponse。  aiResponse是json格式，因為prompt指定
             aiResponse = mychatModel.call(prompt).getResult().getOutput().getText();
 
         } catch (Exception e) {
-            // 1.把錯誤印在後台日誌，才能除錯
-            logger.error("呼叫 Gemini AI 模型失敗: " + e.getMessage(), e);
+            //----模型呼叫失敗---
+            logger.error("呼叫 Gemini AI 模型失敗: " + e.getMessage(), e); // 1.把錯誤印在後台日誌除錯
+
             // 2. 回傳一個更通用的錯誤訊息給前端
-            // 500 Internal Server Error 是一個更適合的 "catch-all" 狀態
             throw new ApiException("AI 服務處理失敗，可能是API_KEY錯誤", HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        // 5.2 將 JSON 字串轉成 RecipeResponse 物件
+        // 5.2 將 JSON 字串轉成 RecipeResponse 物件格式
         RecipeResponse recipeResponse;
         try {
+            //清理aiResponse，避免轉換錯誤
             String cleanAiResponse = aiResponse.replace("```json", "").replace("```", "").trim();
+
+            //mapper.readValue(String content, Class<T> valueType)
+            //content：要解析的 JSON 字串、 valueType：希望生成的 Java 類別
             recipeResponse = mapper.readValue(cleanAiResponse, RecipeResponse.class);
+            //mapper是jakson轉換器--->readvalue來說明: 誰 轉換成 和型態java物件
+
         } catch (JsonProcessingException e) {
-            // JSON 解析失敗也Log
+            // JSON 轉換失敗
             logger.error("無法解析 AI 回傳的 JSON: " + aiResponse, e);
             throw new ApiException("無法解析 AI 生成的食譜 JSON: " , HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        // 5.3. 使用食譜步驟作為圖片提示語，呼叫 Gemini 生成圖片
+        // 5.3. 使用食譜步驟作為圖片prompt，呼叫 Gemini 生成圖片
+        //呼叫圖片生成
         String imageUrl = mygeminiImageService.generateImage(recipeResponse.getSteps());
-        System.out.println("imageUrl 長度：" + imageUrl.length());
-        // 5.4. 更新 Response 物件中的 imageUrl
+
+        // 5.4. recipeResponse 中加入imageUrl
         recipeResponse.setImageUrl(imageUrl);
 
         //5.5 儲存 進資料庫
         System.out.println("LOG: 正在將 AI 結果存入資料庫...");
-        //將recipeResponse的資料放入 new_cache_entry
+
         RecipeCache new_cache_entry=new RecipeCache();
-        new_cache_entry.setKey_id(key);
-        new_cache_entry.setTitle(recipeResponse.getTitle());
-        new_cache_entry.setImageUrl(recipeResponse.getImageUrl());
-        // 用 String.join 轉換list string 成 string，並用||拼接
+        //將recipeResponse的資料放入 new_cache_entry
+
+        new_cache_entry.setKey_id(key);                             //放入key
+        new_cache_entry.setTitle(recipeResponse.getTitle());        //放入料理標題
+        new_cache_entry.setImageUrl(recipeResponse.getImageUrl());  //放入圖片
+
+        // recipeResponse 中ingredients、steps 型態為List<String>。而database只能存放list，所以要List<String>轉換成String
+        //String.join: 把一個 List多個字串元素「用指定分隔符」連起來，變成一條字串。 List<String--->String
         new_cache_entry.setIngredients(String.join("||", recipeResponse.getIngredients()));
         new_cache_entry.setSteps(String.join("||", recipeResponse.getSteps()));
+        //["雞胸肉 200g", "洋蔥 半顆", "橄欖油 1 湯匙"] ---->"雞胸肉 200g||洋蔥 半顆||橄欖油 1 湯匙"
+
         // 存入資料庫
         myrecipeCacheRepository.save(new_cache_entry);
         return recipeResponse;
@@ -173,21 +196,25 @@ public class RecipeService {
         String key=normalize_ingredients+"::"+normalize_style;
         return key;
     }
-    //正規化---資料--1.轉小寫2.特殊符號分割3.去除頭尾空白4.過濾空字串5.排序6.用|重組
+    //正規化---1.檢查空字串 、 2.字串切割 、 3.轉小寫、 4.去除每個字串的頭尾空白、 5.按開頭排序字串陣列、 6.用|重組字串
+    // string --切割成---string [] ----處理完後---組合成 string (用|間隔不同元素)
     private String normalizeString(String input){
+        //1. 輸入是空的，回傳空字串
         if(input == null || input.trim().isEmpty()){
-            return  ""; //輸入是空的，回傳空字串
+            return  "";
         }
-        //全部轉小寫
-      String string_lowercase=input.toLowerCase();
-        //spring中遇到特殊字元，就分割成多個字串陣列(代表不同食材
-        String [] string_arr = string_lowercase.split("[,，、]"); // 只用這三種逗號分割
+        //2. 切割字串split，因為input是"雞肉, 洋蔥"string。所以要先切割成多個字串，才可以進一步處理
+        // 遇到特殊字元，就分割成多個字串陣列(代表不同食材
+        String [] string_arr = input.split("[,，、]"); // 只用這三種符號分割
         //清理 map(代表對每個字串轉換
-        String clean_string=Arrays.stream(string_arr)
-                .map(String::trim)          //刪除每個陣列，頭尾空白
-                .sorted()                   //每個陣列按開頭排序
+        String normalize_string=Arrays.stream(string_arr)
+                .map(String::toLowerCase)   //3.轉小寫
+                .map(String::trim)          //4.刪除每個陣列，頭尾空白
+                .sorted()                   //5.每個陣列按開頭排序
                 .collect(Collectors.joining("|"));  //把 Stream 集成最終結果，用|分隔，輸出預設string
-        return  clean_string;
+        return  normalize_string;
     }
+
+
 
 }

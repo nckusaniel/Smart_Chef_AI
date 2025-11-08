@@ -1,11 +1,14 @@
 package com.example.recipe_ai.controller;
-
+// ====================== DTO ======================
 import com.example.recipe_ai.dto.RecipeRequest;
 import com.example.recipe_ai.dto.RecipeResponse;
+// ====================== Service ======================
+//處理核心業務邏輯（生成食譜、處理資料、呼叫 AI 等
 import com.example.recipe_ai.service.RecipeService;
 import org.springframework.web.bind.annotation.*;
 
-// 標記這個類別 (Class) 是一個「API 控制器」，接收前端的網路請求，並「回傳 JSON 資料」@controller+ @ResponseBody。
+// 標記這個類別 (Class) 是一個「API 控制器」，接收前端的網路請求並「回傳 JSON 資料」
+// @controller負責接收 HTTP 請求、處理資料，並回傳資料或 HTML 頁面等。 @ResponseBody。回傳值放到 HTTP Response Body 中回傳給到前端
 @RestController
 // 允許「所有來源」的網址，都可以來呼叫這裡的 API。解決 CORS 跨域問題。
 @CrossOrigin(origins = "*")
@@ -13,20 +16,14 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/recipe")
 
 /**
- * Recipe Controller負責處理前端關於食譜的 HTTP 請求，並呼叫後端的食譜生成服務。
+ * Recipe Controller負責處理前端 HTTP 請求，並呼叫後端的生成食譜並回傳給前端。
  */
 public class RecipeController {
 
-    // 宣告my_recipeService變數，為了讓下面建構子，可以注入實例
+    // 宣告RecipeService型態的變數my_recipeService
+    // 把RecipeService的注入myrecipeService來使用
     private final RecipeService myrecipeService;
-
-    /**
-     * RecipeController 的建構子。
-     * Spring 框架會自動透過此建構子注入 (DI) 一個 RecipeService 的實例。
-     * @param recipeService 由 Spring 容器提供的食譜服務實例
-     */
     public RecipeController(RecipeService recipeService) {
-
         this.myrecipeService = recipeService;     //附值給自己
     }
 
@@ -35,15 +32,9 @@ public class RecipeController {
      * @param request - 顧客遞給你的「點單」 (RecipeRequest)
      * @return RecipeResponse - 你端回給顧客的「完成的菜餚」 (RecipeResponse)
      */
+    //利用myrecipeService呼叫generateRecipe方法(參數為requset)，回傳resoponse到前端
     @PostMapping("/generate")
     public RecipeResponse handle_generateRecipe(@RequestBody RecipeRequest request) {
         return myrecipeService.generateRecipe(request);
     }
 }
-
-// 你可以在這裡加入更多 API (例如：查詢食譜、刪除食譜...)
-
-//private final RecipeService my_recipeService，宣告變數my_recipeService，為了使用RecipeService類別的generateRecipe。
-//public RecipeController(RecipeService recipeService) {this.my_recipeService = recipeService;//變數實例化，讓我等等可用RecipeService的方法
-//public RecipeResponse handle_generateRecipe(@RequestBody RecipeRequest request)
-//宣告方法來連接前後端，輸入RecipeRequest request 利用my_recipeService呼叫方法generateRecipe(request); 並回傳 RecipeResponse型態給前端
