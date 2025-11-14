@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/195d54a7-ed62-4243-8cdf-628c5c5a4016
         4.  回傳 `RecipeResponse` 給前端。
 3.  **Exception Handling**： 任何在服務層發生的 `ApiException`（如 AI 呼叫失敗）都會被 `GlobalExceptionHandler` 捕捉，並回傳標準化的 JSON 錯誤訊息給前端。
 
-## 🛠️ 技術棧 (Tech Stack)
+## 🛠️ 技術 
 
 | 類別 | 技術/工具 | 備註 |
 | :--- | :--- | :--- |
@@ -77,7 +77,7 @@ cd recipe-ai-backend
 ./mvnw spring-boot:run
 ```
 
-**方法二：使用 Docker (推薦)**
+**方法二：使用 Docker **
 
 ```bash
 # 進入後端專案
